@@ -7,3 +7,4 @@ openai
 langchain_openai
 langchain
 pymongo
+pandas
