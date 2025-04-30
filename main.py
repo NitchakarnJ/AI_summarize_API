@@ -19,14 +19,14 @@ db = get_db()  # เชื่อมต่อกับฐานข้อมูล
 collection = db["news"]
 
 
-@app.get("/")
-async def check_connection():
-    try:
-        # เช็คการเชื่อมต่อกับ MongoDB
-        client.admin.command('ping')
-        return {"status": "connected to MongoDB"}
-    except ConnectionError:
-        return {"status": "failed to connect to MongoDB"}
+# @app.get("/")
+# async def check_connection():
+#     try:
+#         # เช็คการเชื่อมต่อกับ MongoDB
+#         client.admin.command('ping')
+#         return {"status": "connected to MongoDB"}
+#     except ConnectionError:
+#         return {"status": "failed to connect to MongoDB"}
 
 
 @app.get("/get_all_news")
