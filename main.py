@@ -10,6 +10,8 @@ import pandas as pd
 import json
 from fastapi.middleware.cors import CORSMiddleware
 from db import get_db
+import asyncio
+from fastapi.responses import StreamingResponse
 
 
 app = FastAPI()
@@ -139,7 +141,7 @@ def convert_objectid_2(item):
 
 # FastAPI endpoint สำหรับดึงข่าวในช่วงวันที่ที่กำหนด
 # http://127.0.0.1:8000/summerize?start_date=2025-02-01&end_date=2025-04-30
-import asyncio
+
 from fastapi import FastAPI, HTTPException, Query
 from datetime import datetime, timedelta
 import pandas as pd
@@ -199,5 +201,72 @@ async def get_news_by_date(start_date: str = Query(...), end_date: str = Query(.
         # ส่งผลลัพธ์ที่มีสรุปข้อความ
         return {"news": df.to_dict(orient="records")}
 
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# FastAPI endpoint สำหรับดึงข่าวในช่วงวันที่ที่กำหนด
+# http://127.0.0.1:8000/summerize_upgrade?start_date=2025-02-01&end_date=2025-04-30
+@app.get("/summerize_upgrade")
+async def get_news_by_date(start_date: str = Query(...), end_date: str = Query(...)):
+    try:
+        # แปลงวันที่เป็น datetime
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)  # รวมถึงวันสุดท้าย
+
+        # ดึงข้อมูลจาก MongoDB ในช่วงวันที่ที่กำหนด
+        pipeline = [
+            {
+                "$match": {
+                    "Date": {
+                        "$gte": start,
+                        "$lt": end
+                    }
+                }
+            },
+            {
+                "$sort": {
+                    "Views": -1  # จัดเรียงจากมากไปน้อยก่อน group
+                }
+            },
+            {
+                "$group": {
+                    "_id": "$Category",
+                    "top_news": {"$first": "$Views"},
+                    "doc": {"$first": "$$ROOT"}
+                }
+            },
+            {
+                "$sort": {
+                    "top_news": -1  # เรียงกลุ่มตาม Views มากไปน้อย
+                }
+            }
+        ]
+        docs = list(collection.aggregate(pipeline))
+
+        if not docs:
+            return {"message": "ไม่พบข้อมูลในช่วงวันที่ที่ระบุ"}
+        
+        # แปลง ObjectId เป็น string
+        results = [convert_objectid_2(doc) for doc in docs]
+        docs_only = [doc["doc"] for doc in results]
+
+        # แปลงผลลัพธ์เป็น pandas DataFrame
+        df = pd.DataFrame(docs_only)
+
+        async def generate():
+                for doc in docs_only:
+                    print(doc)
+                    
+                    content = doc.get("Content", "")
+                    summary = await summarize_text_async(content)
+                    if isinstance(doc.get("Date"), datetime):
+                        doc["Date"] = doc["Date"].isoformat()
+                    doc["Summary"] = summary
+
+                    # ส่งทีละข่าวในรูปแบบ JSON
+                    yield json.dumps(doc, ensure_ascii=False) + "\n"
+
+        return StreamingResponse(generate(), media_type="application/json")
+        
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
