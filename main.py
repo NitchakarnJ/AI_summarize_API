@@ -8,6 +8,7 @@ from bson import ObjectId
 from datetime import datetime, timedelta  # ต้อง import timedelta
 import pandas as pd
 import json
+from fastapi.middleware.cors import CORSMiddleware
 from db import get_db
 
 
@@ -18,6 +19,14 @@ app = FastAPI()
 db = get_db()  # เชื่อมต่อกับฐานข้อมูล
 collection = db["news"]
 
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # หรือกำหนด origin ที่ปลอดภัย
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # @app.get("/")
 # async def check_connection():
